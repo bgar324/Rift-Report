@@ -1,0 +1,65 @@
+// lib/riot.ts
+const REGION_GROUPS = new Set(["americas", "europe", "asia", "sea"]);
+const DEFAULT_TIMEOUT = 8000;
+
+export type RegionGroup = "americas" | "europe" | "asia" | "sea";
+
+function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchWithTimeout(url: string, init: RequestInit, ms = DEFAULT_TIMEOUT) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal }); }
+  finally { clearTimeout(t); }
+}
+
+export class RiotClient {
+  private apiKey: string;
+  private backoffMs = 0;
+
+  constructor(apiKey: string) {
+    if (!apiKey) throw new Error("Missing RIOT_API_KEY");
+    this.apiKey = apiKey;
+  }
+
+  private async getJson(url: string, retries = 3): Promise<any> {
+    if (this.backoffMs) await sleep(this.backoffMs);
+    const res = await fetchWithTimeout(url, {
+      headers: { "X-Riot-Token": this.apiKey },
+      cache: "no-store",
+    });
+    if (res.status === 429 && retries > 0) {
+      const retryAfter = Number(res.headers.get("Retry-After") || "1");
+      this.backoffMs = Math.max(this.backoffMs, retryAfter * 1000);
+      await sleep(this.backoffMs);
+      this.backoffMs = Math.min(this.backoffMs * 2 || 500, 8000);
+      return this.getJson(url, retries - 1);
+    }
+    if (!res.ok) throw new Error(`Riot API ${res.status}: ${await res.text().catch(()=>url)}`);
+    this.backoffMs = Math.max(0, Math.floor(this.backoffMs / 2));
+    return res.json();
+  }
+
+  // ---- Account / Summoner
+  getAccountByRiotId = (group: RegionGroup, gameName: string, tagLine: string) =>
+    this.getJson(`https://${group}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`);
+
+  getSummonerByPuuid = (platform: string, puuid: string) =>
+    this.getJson(`https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}`);
+
+  // ---- Matches
+  getMatchIdsByPuuid = (group: RegionGroup, puuid: string, qs: URLSearchParams) =>
+    this.getJson(`https://${group}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?${qs}`);
+
+  getMatchById = (group: RegionGroup, matchId: string) =>
+    this.getJson(`https://${group}.api.riotgames.com/lol/match/v5/matches/${matchId}`);
+}
+
+// helpers
+export function assertRegionGroup(v: string): asserts v is RegionGroup {
+  if (!REGION_GROUPS.has(v)) throw new Error(`Invalid region group. Use: ${Array.from(REGION_GROUPS).join(", ")}`);
+}
+export function platformFromMatchId(matchId: string) {
+  // e.g., "NA1_123..." -> "na1"
+  const prefix = matchId.split("_")[0]?.toLowerCase();
+  return prefix || "na1";
+}
