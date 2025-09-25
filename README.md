@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Riot Dash — Personalized Champion Performance Dashboard
 
-## Getting Started
+Next.js (App Router + Tailwind) app that lets a player enter their Riot ID and instantly see:
 
-First, run the development server:
+- Champion breakdown (games, wins, winrate, K/D/A)
+- Role distribution (Top/Jungle/Mid/ADC/Support)
+- Power Picks (player winrate vs. global baseline)
+- Current win/loss streak
+
+The server calls Riot Account-V1 and Match-V5 on the regional host to fetch recent matches and aggregates the results.
+
+## Quickstart
+
+1) Install deps
+
+```bash
+npm install
+```
+
+2) Add your Riot API key
+
+Create `.env.local` in the project root:
+
+```
+RIOT_API_KEY=RGAPI_your_key_here
+```
+
+Optional: enable mock/demo mode (no external requests)
+
+```
+MOCK=1
+```
+
+3) Run the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 and enter a Riot ID like `Faker#KR1`. Pick the correct region group (americas/europe/asia/sea) and click Analyze. You can toggle "Mock data" to see a demo without a key.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How it works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- API Route: `src/app/api/player/summary/route.ts`
+  - Resolves Riot ID → PUUID via Account-V1 on the selected region group.
+  - Fetches recent match IDs and details via Match-V5.
+  - Aggregates per-champion stats, role distribution, overall totals, and computes a simple streak.
+  - Computes Power Picks by comparing player winrate vs. a global baseline (`src/data/globalWinrates.json`). Missing champs default to 50% baseline.
+  - Includes minimal handling for HTTP 429 using `Retry-After` and chunked requests to be gentle with rate limits.
 
-## Learn More
+- UI: `src/app/page.tsx`
+  - Simple client page to input Riot ID and region group, toggle mock mode, and render the dashboard.
 
-To learn more about Next.js, take a look at the following resources:
+- Data:
+  - `src/data/globalWinrates.json` — placeholder global winrates for comparison.
+  - `src/data/mockSummary.json` — canned response for demo mode.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+See `ENVIRONMENT.md` for details on environment setup, regions/routing, and rate limit notes.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Notes
 
-## Deploy on Vercel
+- This project is for personal/portfolio use. Follow Riot’s developer policies and rate limits.
+- For production, consider adding persistence, better error handling, chart visualizations, and champion assets via Data Dragon.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## License
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
