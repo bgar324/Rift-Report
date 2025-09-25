@@ -1,6 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+type ChampIndex = { version: string; nameToId: Record<string, string> };
+
+async function loadChampionIndex(): Promise<ChampIndex> {
+  const versions = await fetch("https://ddragon.leagueoflegends.com/api/versions.json").then(r => r.json());
+  const version = versions[0];
+  const data = await fetch(`https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/champion.json`).then(r => r.json());
+  const nameToId: Record<string, string> = {};
+  for (const k of Object.keys(data.data)) {
+    const entry = data.data[k];
+    nameToId[entry.name] = entry.id;
+  }
+  return { version, nameToId };
+}
+
+function useChampionIndex() {
+  const [idx, setIdx] = useState<ChampIndex | null>(null);
+  useEffect(() => {
+    let done = false;
+    loadChampionIndex().then(v => { if (!done) setIdx(v); });
+    return () => { done = true; };
+  }, []);
+  return idx;
+}
+
+function champIcon(version: string, id: string) {
+  return `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${id}.png`;
+}
 
 export default function Home() {
   const [riotId, setRiotId] = useState("");
@@ -10,6 +38,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [data, setData] = useState<any | null>(null);
+  const champs = useChampionIndex();
 
   async function analyze() {
     try {
@@ -37,6 +66,22 @@ export default function Home() {
     }
   }
 
+  const powerPicksWithIcons = useMemo(() => {
+    if (!data || !champs) return [];
+    return (data.powerPicks || []).map((p: any) => {
+      const id = champs.nameToId[p.champion] || p.champion.replace(/\s+/g, "");
+      return { ...p, icon: champIcon(champs.version, id) };
+    });
+  }, [data, champs]);
+
+  const rowsWithIcons = useMemo(() => {
+    if (!data || !champs) return [];
+    return (data.champions || []).map((r: any) => {
+      const id = champs.nameToId[r.champion] || r.champion.replace(/\s+/g, "");
+      return { ...r, icon: champIcon(champs.version, id) };
+    });
+  }, [data, champs]);
+
   return (
     <main className="min-h-screen px-6 py-10 md:py-16">
       <div className="max-w-5xl mx-auto space-y-8">
@@ -52,7 +97,7 @@ export default function Home() {
               onChange={(e) => setRiotId(e.target.value)}
             />
             <select
-              className="glass-soft px-3 py-2 uppercase"
+              className="glass-soft px-3 py-2 uppercase hover:cursor-pointer"
               value={region}
               onChange={(e) => setRegion(e.target.value)}
             >
@@ -63,7 +108,7 @@ export default function Home() {
             </select>
 
             <select
-              className="glass-soft px-3 py-2"
+              className="glass-soft px-3 py-2 hover:cursor-pointer"
               value={windowSize}
               onChange={(e) => setWindowSize(e.target.value as any)}
               title="Match window"
@@ -90,7 +135,7 @@ export default function Home() {
 
             <button
               onClick={analyze}
-              className="glass-strong px-4 py-2 font-medium hover:ring-white/30 transition"
+              className="glass-strong px-4 py-2 font-medium hover:ring-white/30 transition hover:cursor-pointer"
               disabled={loading}
             >
               {loading ? "Analyzing…" : "Analyze"}
@@ -149,12 +194,15 @@ export default function Home() {
             <section className="glass p-6 md:p-8">
               <h2 className="section-title">Power Picks</h2>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {(data.powerPicks || []).map((p: any) => (
-                  <div key={p.champion} className="glass-soft p-4">
-                    <div className="font-medium">{p.champion}</div>
-                    <div className="card-title-muted">Games {p.games}</div>
-                    <div className="text-sm">Player {p.playerWinrate}% vs Global {p.globalWinrate}%</div>
-                    <div className={`${p.diff >= 0 ? "text-green-600" : "text-red-600"} text-sm`}>Δ {p.diff}%</div>
+                {powerPicksWithIcons.map((p: any) => (
+                  <div key={p.champion} className="glass-soft p-4 flex items-center gap-3">
+                    <img src={p.icon} alt={p.champion} className="w-10 h-10 rounded-lg ring-1 ring-white/20" />
+                    <div className="flex-1">
+                      <div className="font-medium">{p.champion}</div>
+                      <div className="card-title-muted">Games {p.games}</div>
+                      <div className="text-sm">Player {p.playerWinrate}% vs Global {p.globalWinrate}%</div>
+                    </div>
+                    <div className={`${p.diff >= 0 ? "text-green-600" : "text-red-600"} text-sm shrink-0`}>Δ {p.diff}%</div>
                   </div>
                 ))}
               </div>
@@ -189,9 +237,14 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.champions || []).map((r: any) => (
+                    {rowsWithIcons.map((r: any) => (
                       <tr key={r.champion} className="border-t border-white/10">
-                        <td className="p-2">{r.champion}</td>
+                        <td className="p-2">
+                          <div className="flex items-center gap-2">
+                            <img src={r.icon} alt={r.champion} className="w-7 h-7 rounded-md ring-1 ring-white/15" />
+                            <span>{r.champion}</span>
+                          </div>
+                        </td>
                         <td className="p-2">{r.games}</td>
                         <td className="p-2">{r.wins}</td>
                         <td className="p-2">{r.losses}</td>

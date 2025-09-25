@@ -1,0 +1,8 @@
+mode filtering
+better distinction
+
+
+
+=--=
+long term:
+** make it have a landing, or actually look pretty
