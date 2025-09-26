@@ -1,159 +1,291 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { SummaryWithChamps } from "./RiotSearch";
-import { champIcon } from "./RiotSearch";
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Card({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className={`rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur shadow-sm ${className}`}>
+    <div
+      className={`rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur shadow-sm ${className}`}
+    >
       {children}
     </div>
   );
 }
 
+const roleStyle: Record<string, string> = {
+  TOP: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:border-orange-400/20",
+  JUNGLE:
+    "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-400/20",
+  MIDDLE:
+    "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-400/20",
+  BOTTOM:
+    "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-400/20",
+  SUPPORT:
+    "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-400/20",
+};
+
+const itemIcon = (version: string, id: number) =>
+  `https://ddragon.leagueoflegends.com/cdn/${version}/img/item/${id}.png`;
+
+/** UI fallback if API didn't send queueName yet */
+const uiQueueLabel = (id: number): string => {
+  switch (id) {
+    case 420:
+      return "Ranked Solo/Duo";
+    case 440:
+      return "Ranked Flex";
+    case 400:
+      return "Normal Draft";
+    case 430:
+      return "Normal Blind";
+    case 490:
+      return "Quickplay";
+    case 450:
+      return "ARAM";
+    case 1700:
+      return "Arena";
+    case 700:
+      return "Clash";
+    case 900:
+    case 1900:
+      return "URF";
+    default:
+      return "Other";
+  }
+};
+
+function roleChip(role: string, count?: number) {
+  const cls =
+    roleStyle[role] ||
+    "bg-white/40 text-neutral-700 border-white/30 dark:bg-white/10 dark:text-neutral-300";
+  return (
+    <span
+      key={role}
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${cls}`}
+    >
+      <span className="tracking-wide">{role}</span>
+      {typeof count === "number" && <span>• {count}</span>}
+    </span>
+  );
+}
+
 export default function ResultsPanel({ data }: { data: SummaryWithChamps }) {
   const champs = data._champs;
+  const [sortPerf, setSortPerf] = useState<"best" | "worst">("best");
 
   const profileIconUrl = useMemo(() => {
     if (!data?.profile?.profileIconId || !champs) return "";
     return `https://ddragon.leagueoflegends.com/cdn/${champs.version}/img/profileicon/${data.profile.profileIconId}.png`;
   }, [data, champs]);
 
-  const powerPicks = useMemo(() => {
-    return (data.powerPicks || []).map((p) => {
-      const id = champs.nameToId[p.champion] || p.champion.replace(/\s+/g, "");
-      return { ...p, icon: champIcon(champs.version, id) };
+  // Top-5 performance: by winrate; break ties by games, then KDA
+  const topFive = useMemo(() => {
+    const arr = [...(data.champions || [])];
+    arr.sort((a, b) => {
+      const d = b.winrate - a.winrate || b.games - a.games || b.kda - a.kda;
+      return sortPerf === "best" ? d : -d;
     });
-  }, [data, champs]);
+    return arr.slice(0, 5).map((c) => {
+      const id = champs.nameToId[c.champion] || c.champion.replace(/\s+/g, "");
+      return {
+        ...c,
+        icon: `https://ddragon.leagueoflegends.com/cdn/${champs.version}/img/champion/${id}.png`,
+      };
+    });
+  }, [data.champions, champs, sortPerf]);
 
-  const rows = useMemo(() => {
-    return (data.champions || []).map((r) => {
-      const id = champs.nameToId[r.champion] || r.champion.replace(/\s+/g, "");
-      return { ...r, icon: champIcon(champs.version, id) };
-    });
-  }, [data, champs]);
+  const history = data.history || [];
 
   return (
-    <div className="mt-12 space-y-8">
-      {/* Header strip */}
-      <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-sm backdrop-blur md:flex-row md:items-center">
-        <div className="flex items-center gap-3">
-          {profileIconUrl && <img src={profileIconUrl} className="h-10 w-10 rounded-md ring-1 ring-white/20" alt="Profile icon" />}
-          <div>
-            <div className="text-sm font-medium">{data.account.gameName}#{data.account.tagLine}</div>
-            <div className="text-xs text-neutral-600 dark:text-neutral-400">
-              {data.profile?.summonerLevel ? <>Level {data.profile.summonerLevel} • </> : null}
-              {data.profile?.platform?.toUpperCase() || ""}
+    <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-12">
+      {/* Left: Match history */}
+      <div className="md:col-span-8 space-y-4">
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {profileIconUrl && (
+                <img
+                  src={profileIconUrl}
+                  className="h-10 w-10 rounded-md ring-1 ring-white/20"
+                  alt="Profile icon"
+                />
+              )}
+              <div>
+                <div className="text-sm font-medium">
+                  {data.account.gameName}#{data.account.tagLine}
+                </div>
+                <div className="text-xs text-neutral-600 dark:text-neutral-400">
+                  {data.profile?.summonerLevel ? (
+                    <>Level {data.profile.summonerLevel} • </>
+                  ) : null}
+                  {data.profile?.platform?.toUpperCase() || ""}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="text-xs text-neutral-500">
-          {data.totals.matches} matches • {data.totals.wins}W {data.totals.losses}L • {data.totals.winrate}% WR
-        </div>
-      </div>
-
-      {/* Bento grid */}
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-12">
-        {/* Totals */}
-        <Card className="md:col-span-4">
-          <h3 className="text-sm font-medium">Totals</h3>
-          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="text-xs text-neutral-500">Winrate</div>
-              <div className="text-lg font-semibold">{data.totals.winrate}%</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="text-xs text-neutral-500">Record</div>
-              <div className="text-lg font-semibold">{data.totals.wins}W {data.totals.losses}L</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="text-xs text-neutral-500">K/D/A</div>
-              <div className="text-lg font-semibold">{data.totals.kills}/{data.totals.deaths}/{data.totals.assists}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="text-xs text-neutral-500">KDA</div>
-              <div className="text-lg font-semibold">{data.totals.kda}</div>
+            <div className="text-xs text-neutral-500">
+              {data.totals.matches} matches • {data.totals.wins}W{" "}
+              {data.totals.losses}L • {data.totals.winrate}% WR
             </div>
           </div>
         </Card>
 
-        {/* Power Picks */}
-        <Card className="md:col-span-8">
-          <h3 className="text-sm font-medium">Power Picks</h3>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {(powerPicks.length ? powerPicks : []).map((p) => (
-              <div key={p.champion} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
-                <img src={p.icon} alt={p.champion} className="h-10 w-10 rounded-lg ring-1 ring-white/20" />
+        <Card>
+          <h3 className="text-sm font-medium">Match History</h3>
+          <div className="mt-3 divide-y divide-white/10">
+            {history.length === 0 && (
+              <div className="py-6 text-xs text-neutral-500">
+                No matches for this filter.
+              </div>
+            )}
+            {history.map((h) => (
+              <div key={h.id} className="flex items-center gap-3 py-3">
+                <img
+                  src={`https://ddragon.leagueoflegends.com/cdn/${
+                    champs.version
+                  }/img/champion/${
+                    champs.nameToId[h.champion] ||
+                    h.champion.replace(/\s+/g, "")
+                  }.png`}
+                  alt={h.champion}
+                  className="h-9 w-9 rounded-md ring-1 ring-white/15"
+                />
                 <div className="flex-1">
-                  <div className="text-sm font-medium">{p.champion}</div>
-                  <div className="text-xs text-neutral-500">Games {p.games}</div>
-                  <div className="text-xs">Player {p.playerWinrate}% vs Global {p.globalWinrate}%</div>
+                  <div className="text-sm">
+                    <span
+                      className={`font-medium ${
+                        h.win ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {h.win ? "Win" : "Loss"}
+                    </span>
+                    <span className="ml-2">{h.champion}</span>
+                    <span className="ml-2 text-xs text-neutral-500">
+                      {Math.round(h.duration / 60)}m
+                    </span>
+                  </div>
+                  <div className="text-xs text-neutral-500">
+                    {h.kills}/{h.deaths}/{h.assists} • KDA{" "}
+                    {Math.round(h.kda * 10) / 10} • CS {h.cs}
+                  </div>
+
+                  {/* Items row */}
+                  {(Array.isArray(h.items) && h.items.length) || h.trinket ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {(h.items || []).map((id: number, i: number) =>
+                        id ? (
+                          <img
+                            key={`${id}-${i}`} // unique even for duplicates
+                            src={itemIcon(champs.version, id)}
+                            alt={`Item ${id}`}
+                            className="h-6 w-6 rounded-sm ring-1 ring-white/15"
+                          />
+                        ) : null
+                      )}
+                      {h.trinket ? (
+                        <img
+                          key={`t-${h.trinket}`}
+                          src={itemIcon(champs.version, h.trinket)}
+                          alt={`Trinket ${h.trinket}`}
+                          className="ml-1 h-6 w-6 rounded-sm ring-1 ring-yellow-300/40"
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
-                <div className={`${p.diff >= 0 ? "text-green-600" : "text-red-600"} text-sm font-medium`}>Δ {p.diff}%</div>
+
+                {/* Right side: queue label + date */}
+                <div className="w-40 text-right text-xs text-neutral-500 flex flex-col items-end">
+                  <span>{(h as any).queueName || uiQueueLabel(h.queueId)}</span>
+                  <span className="mt-0.5">
+                    {new Date(h.ts).toLocaleDateString()}
+                  </span>
+                </div>
               </div>
             ))}
-            {!powerPicks.length && <div className="text-xs text-neutral-500">Not enough games yet.</div>}
+          </div>
+        </Card>
+      </div>
+
+      {/* Right: Performance sidebar */}
+      <div className="md:col-span-4 space-y-4">
+        <Card>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium">Performance</h3>
+            <div className="flex gap-1 rounded-full border border-white/10 p-1">
+              <button
+                onClick={() => setSortPerf("best")}
+                className={`px-2 py-0.5 text-xs rounded-full ${
+                  sortPerf === "best"
+                    ? "bg-black text-white dark:bg-white dark:text-black"
+                    : ""
+                }`}
+              >
+                Best
+              </button>
+              <button
+                onClick={() => setSortPerf("worst")}
+                className={`px-2 py-0.5 text-xs rounded-full ${
+                  sortPerf === "worst"
+                    ? "bg-black text-white dark:bg-white dark:text-black"
+                    : ""
+                }`}
+              >
+                Worst
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 space-y-2">
+            {topFive.map((c) => (
+              <div
+                key={c.champion}
+                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3"
+              >
+                <img
+                  src={c.icon}
+                  alt={c.champion}
+                  className="h-8 w-8 rounded-md ring-1 ring-white/15"
+                />
+                <div className="flex-1">
+                  <div className="text-sm font-medium">{c.champion}</div>
+                  <div className="text-xs text-neutral-500">
+                    {c.games} games • {c.winrate}% WR • KDA {c.kda}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {!topFive.length && (
+              <div className="text-xs text-neutral-500">
+                Not enough games for this filter.
+              </div>
+            )}
           </div>
         </Card>
 
-        {/* Streak */}
-        <Card className="md:col-span-4">
+        <Card>
           <h3 className="text-sm font-medium">Current Streak</h3>
           <div className="mt-3 text-sm">
-            {data.streak.type === "none" ? "No streak" : `${data.streak.type === "win" ? "Win" : "Loss"} streak: ${data.streak.count}`}
+            {data.streak.type === "none"
+              ? "No streak"
+              : `${data.streak.type === "win" ? "Win" : "Loss"} streak: ${
+                  data.streak.count
+                }`}
           </div>
         </Card>
 
-        {/* Roles */}
-        <Card className="md:col-span-8">
+        <Card>
           <h3 className="text-sm font-medium">Roles</h3>
           <div className="mt-3 flex flex-wrap gap-2">
-            {(data.roles || []).map((r) => (
-              <span key={r.role} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs">{r.role} • {r.count}</span>
-            ))}
-            {(!data.roles || !data.roles.length) && <span className="text-xs text-neutral-500">No role data</span>}
-          </div>
-        </Card>
-
-        {/* By Champion table */}
-        <Card className="md:col-span-12">
-          <h3 className="text-sm font-medium">By Champion</h3>
-          <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="text-left text-xs text-neutral-500">
-                <tr>
-                  {["Champion","Games","Wins","Losses","Winrate","K","D","A","KDA"].map(h => (
-                    <th key={h} className="p-2">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.champion} className="border-t border-white/10">
-                    <td className="p-2">
-                      <div className="flex items-center gap-2">
-                        <img src={r.icon} alt={r.champion} className="h-7 w-7 rounded-md ring-1 ring-white/15" />
-                        <span>{r.champion}</span>
-                      </div>
-                    </td>
-                    <td className="p-2">{r.games}</td>
-                    <td className="p-2">{r.wins}</td>
-                    <td className="p-2">{r.losses}</td>
-                    <td className="p-2">{r.winrate}%</td>
-                    <td className="p-2">{r.kills}</td>
-                    <td className="p-2">{r.deaths}</td>
-                    <td className="p-2">{r.assists}</td>
-                    <td className="p-2">{r.kda}</td>
-                  </tr>
-                ))}
-                {!rows.length && (
-                  <tr>
-                    <td className="p-4 text-xs text-neutral-500" colSpan={9}>No champion data yet.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            {(data.roles || []).map((r) => roleChip(r.role, r.count))}
+            {(!data.roles || !data.roles.length) && (
+              <span className="text-xs text-neutral-500">No role data</span>
+            )}
           </div>
         </Card>
       </div>

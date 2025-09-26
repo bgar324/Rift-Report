@@ -1,13 +1,14 @@
 // lib/riot.ts
-const REGION_GROUPS = new Set(["americas", "europe", "asia", "sea"]);
-const DEFAULT_TIMEOUT = 8000;
-
 export type RegionGroup = "americas" | "europe" | "asia" | "sea";
+
+const REGION_GROUPS = new Set<RegionGroup>(["americas", "europe", "asia", "sea"]);
+const DEFAULT_TIMEOUT = 8000;
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 async function fetchWithTimeout(url: string, init: RequestInit, ms = DEFAULT_TIMEOUT) {
-  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
   try { return await fetch(url, { ...init, signal: c.signal }); }
   finally { clearTimeout(t); }
 }
@@ -34,7 +35,10 @@ export class RiotClient {
       this.backoffMs = Math.min(this.backoffMs * 2 || 500, 8000);
       return this.getJson(url, retries - 1);
     }
-    if (!res.ok) throw new Error(`Riot API ${res.status}: ${await res.text().catch(()=>url)}`);
+    if (!res.ok) {
+      const body = await res.text().catch(()=>url);
+      throw new Error(`Riot API ${res.status}: ${body}`);
+    }
     this.backoffMs = Math.max(0, Math.floor(this.backoffMs / 2));
     return res.json();
   }
@@ -56,8 +60,11 @@ export class RiotClient {
 
 // helpers
 export function assertRegionGroup(v: string): asserts v is RegionGroup {
-  if (!REGION_GROUPS.has(v)) throw new Error(`Invalid region group. Use: ${Array.from(REGION_GROUPS).join(", ")}`);
+  if (!REGION_GROUPS.has(v as RegionGroup)) {
+    throw new Error(`Invalid region group. Use: ${Array.from(REGION_GROUPS).join(", ")}`);
+  }
 }
+
 export function platformFromMatchId(matchId: string) {
   // e.g., "NA1_123..." -> "na1"
   const prefix = matchId.split("_")[0]?.toLowerCase();
