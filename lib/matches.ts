@@ -4,6 +4,11 @@ import { LRU } from "./lru";
 
 const matchCache = new LRU<string, any>(600);
 
+/** Simple sleep helper for throttling */
+function sleep(ms: number) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
 export async function loadMatchIds(
   client: RiotClient,
   group: RegionGroup,
@@ -53,36 +58,55 @@ export async function loadMatchIds(
   return out.slice(0, max);
 }
 
+/**
+ * Fetch matches with concurrency + optional global throttle.
+ * `rateMs`: ~minimum milliseconds between requests across all workers.
+ */
 export async function fetchMatches(
   client: RiotClient,
   group: RegionGroup,
   ids: string[],
-  concurrency = 16
+  concurrency = 16,
+  rateMs = 0
 ) {
   const results: any[] = new Array(ids.length);
   let i = 0;
+
+  // Global throttle: ~1 request per rateMs across all workers
+  let nextAt = Date.now();
+  const takeToken = async () => {
+    if (rateMs <= 0) return;
+    const now = Date.now();
+    const wait = Math.max(0, nextAt - now);
+    if (wait) await sleep(wait);
+    nextAt = Math.max(nextAt, now) + rateMs;
+  };
+
   await Promise.all(
-    Array.from(
-      { length: Math.min(concurrency, ids.length) },
-      async () => {
-        while (true) {
-          const idx = i++;
-          if (idx >= ids.length) break;
-          const id = ids[idx];
-          const cached = matchCache.get(id);
-          if (cached) {
-            results[idx] = cached;
-            continue;
-          }
-          try {
-            const m = await client.getMatchById(group, id);
-            matchCache.set(id, m);
-            results[idx] = m;
-          } catch {}
+    Array.from({ length: Math.min(concurrency, ids.length) }, async () => {
+      while (true) {
+        const idx = i++;
+        if (idx >= ids.length) break;
+        const id = ids[idx];
+
+        const cached = matchCache.get(id);
+        if (cached) {
+          results[idx] = cached;
+          continue;
+        }
+
+        try {
+          await takeToken();
+          const m = await client.getMatchById(group, id);
+          matchCache.set(id, m);
+          results[idx] = m;
+        } catch {
+          // swallow per-match errors to keep the batch moving
         }
       }
-    )
+    })
   );
+
   return results.filter(Boolean);
 }
 
@@ -163,23 +187,19 @@ export function toHistoryRows(puuid: string, matches: any[]) {
 
     return {
       id: m?.metadata?.matchId as string,
-      ts: Number(
-        m?.info?.gameStartTimestamp || m?.info?.gameCreation || 0
-      ),
+      ts: Number(m?.info?.gameStartTimestamp || m?.info?.gameCreation || 0),
       queueId: qid,
-      queueName: queueLabel(qid), // ✅ friendly label
+      queueName: queueLabel(qid),
       mapId: Number(m?.info?.mapId || 0),
       win: Boolean(p?.win),
       champion: String(p?.championName || "Unknown"),
       kills: Number(p?.kills || 0),
       deaths: Number(p?.deaths || 0),
       assists: Number(p?.assists || 0),
-      kda: p?.deaths
-        ? (p.kills + p.assists) / p.deaths
-        : p?.kills + p?.assists,
-      cs: Number(
-        (p?.totalMinionsKilled || 0) + (p?.neutralMinionsKilled || 0)
-      ),
+      kda: p?.deaths ? (p.kills + p.assists) / p.deaths : p?.kills + p?.assists,
+      cs:
+        Number(p?.totalMinionsKilled || 0) +
+        Number(p?.neutralMinionsKilled || 0),
       role: String(p?.teamPosition || p?.individualPosition || "MIDDLE"),
       duration: dur,
       items,
