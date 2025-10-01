@@ -10,6 +10,9 @@ const exo2 = Exo_2({
 export const metadata: Metadata = {
   title: "Rift Report",
   description: "League of Legends Performance Dashboard",
+  icons: {
+    icon: "/rift-report.png",
+  }
 };
 
 export default function RootLayout({
