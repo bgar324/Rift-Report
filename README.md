@@ -1,4 +1,4 @@
-# Riot Dash — Personalized Champion Performance Dashboard
+# Riot Report — Personalized Champion Performance Dashboard
 
 Next.js (App Router + Tailwind) app that lets a player enter their Riot ID and instantly see:
 
