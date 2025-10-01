@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
         const mastery = await rc.getChampionMasteryByPuuid(profile.platform, account.puuid);
         masteryTop = (mastery || [])
           .sort((a: any, b: any) => b.championPoints - a.championPoints)
-          .slice(0, 3)
+          .slice(0, 4)
           .map((m: any) => ({
             championId: Number(m.championId),
             championPoints: Number(m.championPoints),

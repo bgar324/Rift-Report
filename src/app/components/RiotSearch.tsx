@@ -23,7 +23,12 @@ const glassPrimaryBtn =
   "bg-black text-white hover:opacity-90 disabled:opacity-50 cursor-pointer";
 
 /* ---------- Types ---------- */
-export type ChampIndex = { version: string; nameToId: Record<string, string> };
+export type ChampIndex = {
+  version: string;
+  nameToId: Record<string, string>;   // "Aatrox" -> "Aatrox"
+  keyToId: Record<string, string>;    // "266"   -> "Aatrox"
+  idToName: Record<string, string>;   // "Aatrox"-> "Aatrox"
+};
 export type Mode = "all" | "ranked" | "unranked" | "aram" | "arena";
 
 export type LanePhase = {
@@ -57,10 +62,22 @@ export type SummaryWithChamps = SummaryPayload & { _champs: ChampIndex };
 async function loadChampionIndex(): Promise<ChampIndex> {
   const versions = await fetch("https://ddragon.leagueoflegends.com/api/versions.json").then(r => r.json());
   const version = versions[0];
-  const data = await fetch(`https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/champion.json`).then(r => r.json());
+  const data = await fetch(
+    `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/champion.json`
+  ).then(r => r.json());
+
   const nameToId: Record<string, string> = {};
-  for (const k of Object.keys(data.data)) nameToId[data.data[k].name] = data.data[k].id;
-  return { version, nameToId };
+  const keyToId: Record<string, string> = {};
+  const idToName: Record<string, string> = {};
+
+  for (const k of Object.keys(data.data)) {
+    const v = data.data[k]; // { id: "Aatrox", key: "266", name: "Aatrox" }
+    nameToId[v.name] = v.id;
+    keyToId[v.key] = v.id;
+    idToName[v.id] = v.name;
+  }
+
+  return { version, nameToId, keyToId, idToName };
 }
 
 function useChampionIndex() {
