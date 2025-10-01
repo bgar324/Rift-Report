@@ -99,7 +99,7 @@ export default function RiotSearch({ onAnalyzed }: { onAnalyzed: (p: SummaryWith
             <select className="w-32 rounded-xl border border-white/10 bg-white/70 px-3 py-3 text-sm uppercase dark:bg-white/5" value={region} onChange={(e)=>setRegion(e.target.value)}>
               {["americas","europe","asia","sea"].map(r => <option key={r} value={r}>{r}</option>)}
             </select>
-            <button onClick={run} className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white shadow-md hover:opacity-90 disabled:opacity-50 dark:bg-white dark:text-black" disabled={loading || !champs}>
+            <button onClick={run} className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white shadow-md hover:opacity-90 disabled:opacity-50 dark:bg-white dark:text-black hover:cursor-pointer" disabled={loading || !champs}>
               {loading ? "Analyzing…" : "Analyze"}
             </button>
           </div>
