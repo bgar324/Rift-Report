@@ -15,6 +15,7 @@ import {
   onlySummonersRift,
   toHistoryRows,
 } from "../../../../../lib/matches";
+import { computeLanePhaseFromTimeline } from "../../../../../lib/timeline";
 import { aggregateForPuuid } from "../../../../../lib/aggregate";
 
 type Mode = "all" | "ranked" | "unranked" | "aram" | "arena";
@@ -110,6 +111,7 @@ export async function GET(req: NextRequest) {
           champions: [],
           powerPicks: [],
           history: [],
+          masteryTop: [],
           _meta: { ids: 0, mode, srOnly: false },
         },
         { headers: { "Cache-Control": "s-maxage=60" } }
@@ -152,6 +154,50 @@ export async function GET(req: NextRequest) {
 
     const summary = aggregateForPuuid(account.puuid, analyticsBase);
 
+    // --- Add Mastery (top 3) ---
+    let masteryTop: Array<{ championId: number; championPoints: number }> = [];
+    try {
+      if (profile.platform) {
+        const mastery = await rc.getChampionMasteryByPuuid(profile.platform, account.puuid);
+        masteryTop = (mastery || [])
+          .sort((a: any, b: any) => b.championPoints - a.championPoints)
+          .slice(0, 3)
+          .map((m: any) => ({
+            championId: Number(m.championId),
+            championPoints: Number(m.championPoints),
+          }));
+      }
+    } catch {
+      // best effort
+    }
+
+    // --- Add lane-phase to first ~12 rows (quick & useful) ---
+    const historyWithPhase = await (async () => {
+      const out = [...history];
+      const cap = Math.min(out.length, 12);
+      if (cap === 0) return out;
+
+      const timelines = await Promise.all(
+        out.slice(0, cap).map(async (row) => {
+          try {
+            const tl = await rc.getMatchTimeline(region as RegionGroup, row.id);
+            return { id: row.id, tl };
+          } catch {
+            return { id: row.id, tl: null };
+          }
+        })
+      );
+
+      const map = new Map(timelines.map((t) => [t.id, t.tl]));
+      for (let i = 0; i < cap; i++) {
+        const row = out[i];
+        const tl = map.get(row.id);
+        if (!tl) continue;
+        (row as any).lanePhase = computeLanePhaseFromTimeline(tl, account.puuid);
+      }
+      return out;
+    })();
+
     // --- Respond ---
     return NextResponse.json(
       {
@@ -162,7 +208,8 @@ export async function GET(req: NextRequest) {
         },
         profile,
         ...summary,
-        history,
+        history: historyWithPhase,
+        masteryTop,
         _meta: { ids: ids.length, mode, srOnly: doSrOnly },
       },
       { headers: { "Cache-Control": "s-maxage=60" } }

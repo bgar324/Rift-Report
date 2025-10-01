@@ -26,6 +26,13 @@ const glassPrimaryBtn =
 export type ChampIndex = { version: string; nameToId: Record<string, string> };
 export type Mode = "all" | "ranked" | "unranked" | "aram" | "arena";
 
+export type LanePhase = {
+  cs10: number; cs15: number;
+  goldDiff10: number; goldDiff15: number;
+  xpDiff10: number; xpDiff15: number;
+  mythicAt?: number | null;
+};
+
 export type SummaryPayload = {
   account: { gameName: string; tagLine: string; puuid: string };
   profile?: { profileIconId: number | null; summonerLevel: number | null; platform: string | null };
@@ -34,11 +41,13 @@ export type SummaryPayload = {
   roles: { role: string; count: number }[];
   champions: { champion: string; games: number; wins: number; losses: number; winrate: number; kills: number; deaths: number; assists: number; kda: number }[];
   powerPicks: { champion: string; games: number; playerWinrate: number; globalWinrate: number; diff: number }[];
-  history: {
+  history: ({
     id: string; ts: number; queueId: number; mapId: number; win: boolean;
     champion: string; kills: number; deaths: number; assists: number; kda: number; cs: number; role: string; duration: number;
     items?: number[]; trinket?: number | null;
-  }[];
+    lanePhase?: LanePhase; // NEW
+  })[];
+  masteryTop?: { championId: number; championPoints: number }[];
   _meta?: any;
 };
 
@@ -109,7 +118,7 @@ export default function RiotSearch({ onAnalyzed }: { onAnalyzed: (p: SummaryWith
             value={riotId}
             onChange={(e) => setRiotId(e.target.value)}
           />
-          <div className="flex gap-3">
+        <div className="flex gap-3">
             <select
               className={glassSelect}
               value={region}
