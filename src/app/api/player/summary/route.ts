@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
 
-    // Basic params
+    // --- Inputs ---
     const riotId = (searchParams.get("riotId") || "").trim();
     const region = (searchParams.get("region") || "americas").trim().toLowerCase();
     assertRegionGroup(region);
@@ -33,12 +33,12 @@ export async function GET(req: NextRequest) {
     const srOnlyParam = (searchParams.get("srOnly") || "1").trim();
     const srOnly = srOnlyParam === "1" || srOnlyParam === "true";
 
-    // Paging / limits
+    // Count / paging
     let count = Math.min(parseInt(searchParams.get("count") || "20", 10) || 20, 100);
     let fetchAll = ["1", "true"].includes((searchParams.get("all") || "").trim().toLowerCase());
     let maxIds = Math.min(parseInt(searchParams.get("max") || "300", 10) || 300, 1000);
 
-    // size shorthands
+    // Size shorthands
     if (size) {
       if (size === "all") {
         fetchAll = true;
@@ -50,13 +50,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Queue scoping (explicit > inferred from mode)
+    // Queue scoping: explicit > inferred from mode
     const qp = searchParams.get("queue");
     let queue: string | undefined = (qp && qp.trim()) || undefined;
-    // Scope by queue when possible to reduce fetched IDs for single-queue modes
     if (!queue) {
-      if (mode === "aram") queue = "450";   // ARAM
-      else if (mode === "arena") queue = "1700"; // Arena
+      if (mode === "aram") queue = "450";
+      else if (mode === "arena") queue = "1700";
     }
 
     // Optional time window
@@ -78,10 +77,10 @@ export async function GET(req: NextRequest) {
     }
     const rc = new RiotClient(apiKey);
 
-    // Resolve account
+    // --- Resolve account ---
     const account = await rc.getAccountByRiotId(region as RegionGroup, gameName, tagLine);
 
-    // Load IDs
+    // --- Load match IDs ---
     const ids = await loadMatchIds(rc, region as RegionGroup, account.puuid, {
       count,
       all: fetchAll,
@@ -91,7 +90,7 @@ export async function GET(req: NextRequest) {
       endTime,
     });
 
-    // Empty response shape
+    // Early empty payload (stable shape)
     if (!ids.length) {
       return NextResponse.json(
         {
@@ -102,14 +101,9 @@ export async function GET(req: NextRequest) {
           },
           profile: { profileIconId: null, summonerLevel: null, platform: null },
           totals: {
-            matches: 0,
-            wins: 0,
-            losses: 0,
-            kills: 0,
-            deaths: 0,
-            assists: 0,
-            winrate: 0,
-            kda: 0,
+            matches: 0, wins: 0, losses: 0,
+            kills: 0, deaths: 0, assists: 0,
+            winrate: 0, kda: 0,
           },
           streak: { type: "none", count: 0 },
           roles: [],
@@ -122,7 +116,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Profile (best-effort)
+    // --- Profile (best-effort, routed via first match platform) ---
     let profile = {
       profileIconId: null as number | null,
       summonerLevel: null as number | null,
@@ -137,10 +131,11 @@ export async function GET(req: NextRequest) {
         platform,
       };
     } catch {
-      // swallow — profile is optional
+      // optional
     }
 
-    // Fetch & filter with adaptive concurrency + gentle throttling
+    // --- Fetch & filter matches ---
+    // Adaptive concurrency + gentle throttle to avoid 429 storms
     const N = ids.length;
     const conc = N <= 20 ? 16 : N <= 50 ? 10 : N <= 120 ? 8 : 6;
     const rateMs = N <= 20 ? 0 : N <= 50 ? 35 : 60;
@@ -148,14 +143,16 @@ export async function GET(req: NextRequest) {
     const matchesRaw = await fetchMatches(rc, region as RegionGroup, ids, conc, rateMs);
     const matchesMode = filterByMode(matchesRaw, mode);
 
-    // History rows (includes items/trinket)
+    // History rows (include items/trinket/queueName)
     const history = toHistoryRows(account.puuid, matchesMode);
 
-    // SR-only analytics **only** for SR modes (ranked/unranked). ARAM/Arena bypass.
+    // SR-only analytics ONLY for SR modes (ranked/unranked)
     const doSrOnly = srOnly && (mode === "ranked" || mode === "unranked");
     const analyticsBase = doSrOnly ? onlySummonersRift(matchesMode) : matchesMode;
+
     const summary = aggregateForPuuid(account.puuid, analyticsBase);
 
+    // --- Respond ---
     return NextResponse.json(
       {
         account: {

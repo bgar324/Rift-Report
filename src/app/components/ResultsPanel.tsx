@@ -12,7 +12,7 @@ function Card({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur shadow-sm ${className}`}
+      className={`rounded-2xl border border-black/10 bg-white/60 p-5 backdrop-blur shadow-sm ${className}`}
     >
       {children}
     </div>
@@ -20,15 +20,11 @@ function Card({
 }
 
 const roleStyle: Record<string, string> = {
-  TOP: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:border-orange-400/20",
-  JUNGLE:
-    "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-400/20",
-  MIDDLE:
-    "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-400/20",
-  BOTTOM:
-    "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-400/20",
-  SUPPORT:
-    "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-400/20",
+  TOP: "bg-orange-100 text-orange-800 border-orange-200",
+  JUNGLE: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  MIDDLE: "bg-indigo-100 text-indigo-800 border-indigo-200",
+  BOTTOM: "bg-sky-100 text-sky-800 border-sky-200",
+  SUPPORT: "bg-teal-100 text-teal-800 border-teal-200",
 };
 
 const itemIcon = (version: string, id: number) =>
@@ -64,7 +60,7 @@ const uiQueueLabel = (id: number): string => {
 function roleChip(role: string, count?: number) {
   const cls =
     roleStyle[role] ||
-    "bg-white/40 text-neutral-700 border-white/30 dark:bg-white/10 dark:text-neutral-300";
+    "bg-gray-100 text-gray-700 border-gray-200";
   return (
     <span
       key={role}
@@ -113,7 +109,7 @@ export default function ResultsPanel({ data }: { data: SummaryWithChamps }) {
               {profileIconUrl && (
                 <img
                   src={profileIconUrl}
-                  className="h-10 w-10 rounded-md ring-1 ring-white/20"
+                  className="h-10 w-10 rounded-md ring-1 ring-black/10"
                   alt="Profile icon"
                 />
               )}
@@ -121,7 +117,7 @@ export default function ResultsPanel({ data }: { data: SummaryWithChamps }) {
                 <div className="text-sm font-medium">
                   {data.account.gameName}#{data.account.tagLine}
                 </div>
-                <div className="text-xs text-neutral-600 dark:text-neutral-400">
+                <div className="text-xs text-neutral-600">
                   {data.profile?.summonerLevel ? (
                     <>Level {data.profile.summonerLevel} • </>
                   ) : null}
@@ -138,7 +134,7 @@ export default function ResultsPanel({ data }: { data: SummaryWithChamps }) {
 
         <Card>
           <h3 className="text-sm font-medium">Match History</h3>
-          <div className="mt-3 divide-y divide-white/10">
+          <div className="mt-3 divide-y divide-black/5">
             {history.length === 0 && (
               <div className="py-6 text-xs text-neutral-500">
                 No matches for this filter.
@@ -154,7 +150,7 @@ export default function ResultsPanel({ data }: { data: SummaryWithChamps }) {
                     h.champion.replace(/\s+/g, "")
                   }.png`}
                   alt={h.champion}
-                  className="h-9 w-9 rounded-md ring-1 ring-white/15"
+                  className="h-9 w-9 rounded-md ring-1 ring-black/10"
                 />
                 <div className="flex-1">
                   <div className="text-sm">
@@ -184,7 +180,7 @@ export default function ResultsPanel({ data }: { data: SummaryWithChamps }) {
                             key={`${id}-${i}`} // unique even for duplicates
                             src={itemIcon(champs.version, id)}
                             alt={`Item ${id}`}
-                            className="h-6 w-6 rounded-sm ring-1 ring-white/15"
+                            className="h-6 w-6 rounded-sm ring-1 ring-black/10"
                           />
                         ) : null
                       )}
@@ -218,13 +214,11 @@ export default function ResultsPanel({ data }: { data: SummaryWithChamps }) {
         <Card>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium">Performance</h3>
-            <div className="flex gap-1 rounded-full border border-white/10 p-1">
+            <div className="flex gap-1 rounded-full border border-black/10 p-1">
               <button
                 onClick={() => setSortPerf("best")}
                 className={`px-2 py-0.5 text-xs rounded-full ${
-                  sortPerf === "best"
-                    ? "bg-black text-white dark:bg-white dark:text-black"
-                    : ""
+                  sortPerf === "best" ? "bg-black text-white" : ""
                 }`}
               >
                 Best
@@ -232,9 +226,7 @@ export default function ResultsPanel({ data }: { data: SummaryWithChamps }) {
               <button
                 onClick={() => setSortPerf("worst")}
                 className={`px-2 py-0.5 text-xs rounded-full ${
-                  sortPerf === "worst"
-                    ? "bg-black text-white dark:bg-white dark:text-black"
-                    : ""
+                  sortPerf === "worst" ? "bg-black text-white" : ""
                 }`}
               >
                 Worst
@@ -245,16 +237,16 @@ export default function ResultsPanel({ data }: { data: SummaryWithChamps }) {
             {topFive.map((c) => (
               <div
                 key={c.champion}
-                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3"
+                className="flex items-center gap-3 rounded-xl border border-black/10 bg-white/50 p-3"
               >
                 <img
                   src={c.icon}
                   alt={c.champion}
-                  className="h-8 w-8 rounded-md ring-1 ring-white/15"
+                  className="h-8 w-8 rounded-md ring-1 ring-black/10"
                 />
                 <div className="flex-1">
                   <div className="text-sm font-medium">{c.champion}</div>
-                  <div className="text-xs text-neutral-500">
+                  <div className="text-xs text-neutral-600">
                     {c.games} games • {c.winrate}% WR • KDA {c.kda}
                   </div>
                 </div>

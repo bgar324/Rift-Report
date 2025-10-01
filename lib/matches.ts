@@ -9,6 +9,7 @@ function sleep(ms: number) {
   return new Promise((res) => setTimeout(res, ms));
 }
 
+/** Load match IDs with optional queue/time scoping. Paged when `all=true`. */
 export async function loadMatchIds(
   client: RiotClient,
   group: RegionGroup,
@@ -40,7 +41,7 @@ export async function loadMatchIds(
     return client.getMatchIdsByPuuid(group, puuid, base);
   }
 
-  // paged "all" mode
+  // Paged "all" mode (safe caps).
   const page = Math.min(count, 100);
   let start = 0;
   const out: string[] = [];
@@ -60,7 +61,7 @@ export async function loadMatchIds(
 
 /**
  * Fetch matches with concurrency + optional global throttle.
- * `rateMs`: ~minimum milliseconds between requests across all workers.
+ * `rateMs`: ~minimum milliseconds between requests across all workers (to avoid 429 bursts).
  */
 export async function fetchMatches(
   client: RiotClient,
@@ -72,7 +73,7 @@ export async function fetchMatches(
   const results: any[] = new Array(ids.length);
   let i = 0;
 
-  // Global throttle: ~1 request per rateMs across all workers
+  // Global throttle token bucket
   let nextAt = Date.now();
   const takeToken = async () => {
     if (rateMs <= 0) return;
@@ -110,7 +111,7 @@ export async function fetchMatches(
   return results.filter(Boolean);
 }
 
-/** Filter by common modes using queueId groups */
+/** Filter by common modes using queueId groups. */
 export function filterByMode(
   matches: any[],
   mode: "all" | "ranked" | "unranked" | "aram" | "arena"
@@ -133,44 +134,34 @@ export function filterByMode(
   return matches; // all
 }
 
-/** Keep only Summoner's Rift (mapId === 11) */
+/** Keep only Summoner's Rift (mapId === 11). */
 export function onlySummonersRift(matches: any[]) {
   return matches.filter((m) => Number(m?.info?.mapId || 0) === 11);
 }
 
-/** Human label for common queues (extend as needed) */
+/** Human label for common queues (extend as needed). */
 export function queueLabel(queueId: number): string {
   switch (queueId) {
     // Ranked SR
-    case 420:
-      return "Ranked Solo/Duo";
-    case 440:
-      return "Ranked Flex";
+    case 420: return "Ranked Solo/Duo";
+    case 440: return "Ranked Flex";
     // Normals / Quickplay SR
-    case 400:
-      return "Normal Draft";
-    case 430:
-      return "Normal Blind";
-    case 490:
-      return "Quickplay";
+    case 400: return "Normal Draft";
+    case 430: return "Normal Blind";
+    case 490: return "Quickplay";
     // ARAM
-    case 450:
-      return "ARAM";
+    case 450: return "ARAM";
     // ARENA
-    case 1700:
-      return "Arena";
+    case 1700: return "Arena";
     // (kept for completeness)
-    case 700:
-      return "Clash";
+    case 700: return "Clash";
     case 900:
-    case 1900:
-      return "URF";
-    default:
-      return "Other";
+    case 1900: return "URF";
+    default: return "Other";
   }
 }
 
-/** Minimal row for match history UI (with end-of-game items + queueName) */
+/** Minimal row for match history UI (with end-of-game items + queueName). */
 export function toHistoryRows(puuid: string, matches: any[]) {
   return matches.map((m) => {
     const p = m?.info?.participants?.find((pp: any) => pp?.puuid === puuid);
@@ -197,9 +188,7 @@ export function toHistoryRows(puuid: string, matches: any[]) {
       deaths: Number(p?.deaths || 0),
       assists: Number(p?.assists || 0),
       kda: p?.deaths ? (p.kills + p.assists) / p.deaths : p?.kills + p?.assists,
-      cs:
-        Number(p?.totalMinionsKilled || 0) +
-        Number(p?.neutralMinionsKilled || 0),
+      cs: Number(p?.totalMinionsKilled || 0) + Number(p?.neutralMinionsKilled || 0),
       role: String(p?.teamPosition || p?.individualPosition || "MIDDLE"),
       duration: dur,
       items,
